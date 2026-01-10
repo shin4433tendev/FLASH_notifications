@@ -1,0 +1,161 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>お知らせJSON管理ツール (最新順)</title>
+<style>
+    body { font-family: "Helvetica Neue", Arial, sans-serif; padding: 20px; max-width: 1000px; margin: 0 auto; background-color: #f4f4f9; color: #333; }
+    h2 { border-bottom: 2px solid #333; padding-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+    .status { font-size: 14px; font-weight: normal; color: #666; }
+    .card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; display: flex; gap: 10px; align-items: flex-start; transition: transform 0.2s; border-left: 5px solid #008CBA; }
+    .card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
+    .input-group { display: flex; flex-direction: column; flex: 1; }
+    label { font-size: 11px; font-weight: bold; margin-bottom: 5px; color: #777; }
+    input, textarea { padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; width: 100%; box-sizing: border-box; }
+    textarea { height: 70px; resize: vertical; }
+    .input-id { background-color: #f0f0f0; color: #666; cursor: not-allowed; border: 1px dashed #ccc; }
+    .btn-remove { background: #ff4d4d; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; height: fit-content; margin-top: 25px; white-space: nowrap; }
+    .btn-remove:hover { background: #cc0000; }
+    .controls { margin-top: 20px; display: flex; gap: 10px; padding-bottom: 20px; border-bottom: 1px solid #ddd; position: sticky; top: 0; background: #f4f4f9; z-index: 10; }
+    button { padding: 12px 24px; cursor: pointer; font-weight: bold; border: none; border-radius: 4px; font-size: 16px; }
+    .btn-add { background: #4CAF50; color: white; }
+    .btn-add:hover { background: #45a049; }
+    .btn-gen { background: #008CBA; color: white; }
+    .btn-gen:hover { background: #007bb5; }
+    #output { width: 100%; height: 250px; margin-top: 20px; font-family: monospace; border: 1px solid #ccc; padding: 10px; box-sizing: border-box; background: #fff; }
+    .loading-msg { text-align: center; color: #666; margin: 40px 0; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<h2>
+    お知らせJSON管理 (最新順)
+    <span class="status" id="status-text"></span>
+</h2>
+
+<div class="controls">
+    <button class="btn-add" onclick="addItem()">＋ 新規追加 (先頭へ)</button>
+    <button class="btn-gen" onclick="generateJSON()">JSON生成＆コピー</button>
+</div>
+
+<div id="list-container">
+    <div class="loading-msg">通信中：最新のデータを取得しています...</div>
+</div>
+
+<h3>出力結果</h3>
+<textarea id="output" readonly placeholder="「JSON生成」ボタンを押すと、最新順のJSONが表示されます。"></textarea>
+
+<script>
+    const TARGET_URL = "https://raw.githubusercontent.com/shin4433tendev/FLASH_notifications/refs/heads/main/notifications.json";
+    const container = document.getElementById('list-container');
+    const statusText = document.getElementById('status-text');
+
+    // ID生成用関数 (yyyymmddhhmmss形式)
+    function generateTimestampId() {
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const d = String(now.getDate()).padStart(2, '0');
+        const h = String(now.getHours()).padStart(2, '0');
+        const min = String(now.getMinutes()).padStart(2, '0');
+        const s = String(now.getSeconds()).padStart(2, '0');
+        return `${y}${m}${d}${h}${min}${s}`;
+    }
+
+    window.onload = async () => {
+        try {
+            const res = await fetch(TARGET_URL + '?t=' + Date.now());
+            if (!res.ok) throw new Error(`Status: ${res.status}`);
+            
+            const data = await res.json();
+            container.innerHTML = "";
+            statusText.innerText = "最新データを読み込みました";
+            statusText.style.color = "green";
+
+            if (data && data.length > 0) {
+                // 読み込み時：元データが古い順なら、画面上は新しい順に並ぶようループ
+                data.forEach(item => addItem(item));
+            } else {
+                addItem();
+            }
+        } catch (error) {
+            console.error(error);
+            container.innerHTML = "";
+            statusText.innerText = "読み込み失敗";
+            statusText.style.color = "red";
+            addItem();
+        }
+    };
+
+    // addItemを修正：container.prepend(div) で先頭に追加
+    function addItem(data = { id: "", date: "", title: "", content: "" }) {
+        const div = document.createElement('div');
+        div.className = 'card';
+        const today = new Date().toISOString().slice(0, 10).replace(/-/g, "/");
+        
+        const currentId = data.id || generateTimestampId();
+
+        div.innerHTML = `
+            <div class="input-group" style="flex: 0 0 140px;">
+                <label>ID</label>
+                <input type="text" class="input-id" value="${currentId}" readonly>
+            </div>
+            <div class="input-group" style="flex: 0 0 140px;">
+                <label>日付 (YYYY/MM/DD)</label>
+                <input type="text" class="input-date" value="${data.date || today}" placeholder="${today}">
+            </div>
+            <div class="input-group" style="flex: 1;">
+                <label>タイトル</label>
+                <input type="text" class="input-title" value="${data.title}" placeholder="お知らせタイトル">
+            </div>
+            <div class="input-group" style="flex: 2;">
+                <label>本文</label>
+                <textarea class="input-content" placeholder="お知らせの内容">${data.content}</textarea>
+            </div>
+            <button class="btn-remove" onclick="removeItem(this)">削除</button>
+        `;
+        
+        // リストの先頭に追加
+        container.insertBefore(div, container.firstChild);
+    }
+
+    function removeItem(btn) {
+        if(confirm("このお知らせを削除しますか？")) {
+            btn.parentElement.remove();
+        }
+    }
+
+    function generateJSON() {
+        const cards = document.querySelectorAll('.card');
+        const result = [];
+
+        // 画面の上から順番（最新順）に配列へ格納
+        cards.forEach(card => {
+            const id = card.querySelector('.input-id').value;
+            const date = card.querySelector('.input-date').value.trim();
+            const title = card.querySelector('.input-title').value.trim();
+            const content = card.querySelector('.input-content').value.trim();
+
+            if(date || title || content) {
+                result.push({
+                    id: id,
+                    date: date,
+                    title: title,
+                    content: content
+                });
+            }
+        });
+
+        const jsonString = JSON.stringify(result, null, 2);
+        const output = document.getElementById('output');
+        output.value = jsonString;
+        
+        output.select();
+        document.execCommand('copy');
+        alert('最新順でJSONを生成し、コピーしました！');
+    }
+</script>
+
+</body>
+</html>
