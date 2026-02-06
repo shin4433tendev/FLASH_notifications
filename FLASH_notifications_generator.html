@@ -147,6 +147,9 @@
             }
         });
 
+        // IDを降順でソート（追加）
+        result.sort((a, b) => b.id.localeCompare(a.id));
+
         const jsonString = JSON.stringify(result, null, 2);
         const output = document.getElementById('output');
         output.value = jsonString;
